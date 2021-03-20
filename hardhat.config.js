@@ -9,11 +9,13 @@ const GAS_PRICE = 20e9; // 20 GWEI
 module.exports = {
 	GAS_PRICE,
 	solidity: {
-		compilers: [
-			{
-				version: '0.7.1',
+		version: '0.7.1',
+		settings: {
+			optimizer: {
+				enabled: true,
+				runs: 1000000000,
 			},
-		],
+		},
 	},
 	paths: {
 		sources: './contracts',

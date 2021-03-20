@@ -2,7 +2,7 @@
 pragma solidity ^0.7.1;
 pragma experimental ABIEncoderV2;
 
-import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
+import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 
 import {
     ISuperfluid,
@@ -20,7 +20,7 @@ import {SuperAppBase} from "@superfluid-finance/ethereum-contracts/contracts/app
 
 import {CFALibrary} from "./CFALibrary.sol";
 
-contract RedirectAll is SuperAppBase, CFALibrary {
+contract RedirectAll is SuperAppBase, CFALibrary, ERC721 {
     address internal _owner; // in this case, receiver is THE BUSINESS
 
     struct Lien {
@@ -34,20 +34,18 @@ contract RedirectAll is SuperAppBase, CFALibrary {
     int96 public totalLiens;
     uint256 public lastId;
 
-    IERC721 public nftContract;
-
     constructor(
+        address owner,
         ISuperfluid host,
         IConstantFlowAgreementV1 cfa,
         ISuperToken acceptedToken,
-        address owner,
-        IERC721 nftAddress
-    ) CFALibrary(host, cfa, acceptedToken) {
+        string memory name,
+        string memory symbol
+    ) CFALibrary(host, cfa, acceptedToken) ERC721(name, symbol) {
         require(address(owner) != address(0), "receiver/owner is zero address");
         require(!host.isApp(ISuperApp(owner)), "receiver/owner is an app");
 
         _owner = owner;
-        nftContract = nftAddress;
 
         uint256 configWord =
             SuperAppDefinitions.APP_LEVEL_FINAL |
@@ -100,14 +98,14 @@ contract RedirectAll is SuperAppBase, CFALibrary {
             int96 lienFlow = 0;
             while (liens[ID].currentFlowRate != liens[ID].flowRate && ID <= lastId) {
                 // rehydrate flows accordingly...
-                (, lienFlow, , ) = _cfa.getFlow(_acceptedToken, address(this), nftContract.ownerOf(ID));
+                (, lienFlow, , ) = _cfa.getFlow(_acceptedToken, address(this), ownerOf(ID));
                 int96 newFlow = liens[ID].flowRate - liens[ID].currentFlowRate;
                 // check if the flowToIncrease is enough to fill the NFT
                 if (flowToIncrease < newFlow) newFlow = flowToIncrease;
                 //if user has a flow, updateFlow
                 //if user doesn't have a flow, create
-                if (lienFlow > 0) newCtx = _updateFlow(nftContract.ownerOf(ID), lienFlow + newFlow, newCtx);
-                else newCtx = _createFlow(nftContract.ownerOf(ID), newFlow, newCtx);
+                if (lienFlow > 0) newCtx = _updateFlow(ownerOf(ID), lienFlow + newFlow, newCtx);
+                else newCtx = _createFlow(ownerOf(ID), newFlow, newCtx);
                 liens[ID].currentFlowRate = newFlow;
                 ID++;
                 flowToIncrease -= newFlow;
@@ -142,16 +140,16 @@ contract RedirectAll is SuperAppBase, CFALibrary {
                 if (liens[ID].flowRate > flowToReduce) {
                     liens[ID].currentFlowRate = liens[ID].flowRate - flowToReduce;
                     //updateFlow;
-                    return newCtx = _updateFlow(nftContract.ownerOf(ID), liens[ID].flowRate - flowToReduce, newCtx);
+                    return newCtx = _updateFlow(ownerOf(ID), liens[ID].flowRate - flowToReduce, newCtx);
                 } else {
                     liens[ID].currentFlowRate = 0;
                     // check if there is more than one flow.
                     // If one, delete, if more, reduce amount
-                    (, lienFlow, , ) = _cfa.getFlow(_acceptedToken, address(this), nftContract.ownerOf(ID));
+                    (, lienFlow, , ) = _cfa.getFlow(_acceptedToken, address(this), ownerOf(ID));
                     if (lienFlow == liens[ID].flowRate) {
-                        newCtx = _deleteFlow(address(this), nftContract.ownerOf(ID), newCtx);
+                        newCtx = _deleteFlow(address(this), ownerOf(ID), newCtx);
                     } else {
-                        newCtx = _updateFlow(nftContract.ownerOf(ID), lienFlow - liens[ID].flowRate, newCtx);
+                        newCtx = _updateFlow(ownerOf(ID), lienFlow - liens[ID].flowRate, newCtx);
                     }
                 }
                 if (ID > 0) ID--;
@@ -174,7 +172,7 @@ contract RedirectAll is SuperAppBase, CFALibrary {
         if (newReceiver == _owner) return;
 
         // @dev delete flow to old receiver
-        address oldOwner = nftContract.ownerOf(tokenId);
+        address oldOwner = ownerOf(tokenId);
 
         (, int96 outFlowRate, , ) = _cfa.getFlow(_acceptedToken, address(this), oldOwner); //CHECK: unclear what happens if flow doesn't exist.
         if (outFlowRate == liens[tokenId].flowRate) {
