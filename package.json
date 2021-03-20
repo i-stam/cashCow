@@ -1,0 +1,29 @@
+{
+    "name": "future-sale",
+    "version": "0.0.0",
+    "description": "",
+    "main": "index.js",
+    "scripts": {
+        "clean-install": "rm -rf build && rm ./package-lock.json && rm -rf node_modules/* && npm install",
+        "compile": "hardhat compile",
+        "test": "hardhat test"
+    },
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/i-stam/future-sale.git"
+    },
+    "private": true,
+    "bugs": {
+        "url": "https://github.com/i-stam/future-sale/issues"
+    },
+    "homepage": "https://github.com/i-stam/future-sale#readme",
+    "devDependencies": {
+        "@nomiclabs/hardhat-truffle5": "2.0.0",
+        "@nomiclabs/hardhat-web3": "2.0.0",
+        "chai": "^4.2.0",
+        "hardhat": "^2.0.6"
+    },
+    "dependencies": {
+        "@openzeppelin/contracts": "^3.4.1"
+    }
+}
