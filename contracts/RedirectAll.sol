@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.7.1;
-pragma abicoder v2;
 
 import {
     ISuperfluid,
@@ -24,16 +23,16 @@ contract RedirectAll is SuperAppBase, CFALibrary {
 
     address private _owner; // in this case, receiver is THE BUSINESS
 
-    internal struct Lien{
+    struct Lien{
         int96 flowRate;
         uint256 expiry;
         uint256 duration;
         int96 currentFlowRate;
-    };
+    }
 
-    internal mapping(uint256 => Lien) liens;
-    internal int96 totalLiens = 0;
-    uint256 lastId = 0;
+    mapping(uint256 => Lien) public liens;
+    int96 public totalLiens;
+    uint256 public lastId;
 
     constructor(
         ISuperfluid host,
@@ -109,7 +108,7 @@ contract RedirectAll is SuperAppBase, CFALibrary {
                   //if user doesn't have a flow, create
               if(lienFlow > 0) newCtx = _updateFlow(ERC721.ownerOf(ID), lienFlow + newFlow, newCtx);
               else newCtx = _createFlow(ERC721.ownerOf(ID), newFlow, newCtx);
-              liens[ID].currentFlowRate = newFlow
+              liens[ID].currentFlowRate = newFlow;
               ID++;
               flowToIncrease -= newFlow;
               if(flowToIncrease == 0) return newCtx;
