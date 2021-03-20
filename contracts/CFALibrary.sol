@@ -1,11 +1,19 @@
+// SPDX-License-Identifier: MIT
 pragma solidity ^0.7.1;
 
-import {ISuperToken, IConstantFlowAgreementV1, ISuperfluid} from "./RedirectAll.sol";
+import {
+    ISuperfluid,
+    ISuperToken
+} from "@superfluid-finance/ethereum-contracts/contracts/interfaces/superfluid/ISuperfluid.sol";
+
+import {
+    IConstantFlowAgreementV1
+} from "@superfluid-finance/ethereum-contracts/contracts/interfaces/agreements/IConstantFlowAgreementV1.sol";
 
 contract CFALibrary {
-    ISuperfluid private _host; // host
-    IConstantFlowAgreementV1 private _cfa; // the stored constant flow agreement class address
-    ISuperToken private _acceptedToken; // accepted token
+    ISuperfluid internal _host; // host
+    IConstantFlowAgreementV1 internal _cfa; // the stored constant flow agreement class address
+    ISuperToken internal _acceptedToken; // accepted token
 
     constructor(
         ISuperfluid host,
@@ -41,8 +49,8 @@ contract CFALibrary {
     function _createFlow(
         address to,
         int96 flowRate,
-        bytes ctx
-    ) internal returns (bytes newCtx) {
+        bytes memory ctx
+    ) internal returns (bytes memory newCtx) {
         (newCtx, ) = _host.callAgreementWithContext(
             _cfa,
             abi.encodeWithSelector(
@@ -74,8 +82,8 @@ contract CFALibrary {
     function _updateFlow(
         address to,
         int96 flowRate,
-        bytes ctx
-    ) internal returns (bytes newCtx) {
+        bytes memory ctx
+    ) internal returns (bytes memory newCtx) {
         (newCtx, ) = _host.callAgreementWithContext(
             _cfa,
             abi.encodeWithSelector(
@@ -98,7 +106,6 @@ contract CFALibrary {
                 _acceptedToken,
                 from,
                 to,
-                flowRate,
                 new bytes(0) // placeholder
             ),
             "0x"
@@ -108,8 +115,8 @@ contract CFALibrary {
     function _deleteFlow(
         address from,
         address to,
-        bytes ctx
-    ) internal returns (bytes newCtx) {
+        bytes memory ctx
+    ) internal returns (bytes memory newCtx) {
         (newCtx, ) = _host.callAgreementWithContext(
             _cfa,
             abi.encodeWithSelector(
@@ -117,7 +124,6 @@ contract CFALibrary {
                 _acceptedToken,
                 from,
                 to,
-                flowRate,
                 new bytes(0) // placeholder
             ),
             "0x",
