@@ -77,7 +77,7 @@ contract RedirectAll is SuperAppBase, CFALibrary, ERC721 {
 
     event ReceiverChanged(address receiver); //what is this?
 
-    /// @dev If a new stream is opened, or an existing one is opened
+    /// @dev If a new stream is opened, or an existing one is updated
     function _updateOutflow(bytes calldata ctx) private returns (bytes memory newCtx) {
         newCtx = ctx;
         // @dev This will give me the new flowRate, as it is called in after callbacks
@@ -112,7 +112,11 @@ contract RedirectAll is SuperAppBase, CFALibrary, ERC721 {
                 if (flowToIncrease == 0) return newCtx;
             }
             // now send all excess to the owner
-            return newCtx = _createFlow(_owner, flowToIncrease, newCtx);
+            if (outFlowRate > 0) {
+                return newCtx = _updateFlow(_owner, flowToIncrease + ownerFlow, newCtx);
+            } else {
+                return newCtx = _createFlow(_owner, flowToIncrease, newCtx);
+            }
         }
         // bad case, money go down
         if (inFlowRate > totalLiens) {

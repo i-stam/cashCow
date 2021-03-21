@@ -1,6 +1,6 @@
 'use strict';
 
-const { web3tx, toWad } = require('@decentral.ee/web3-helpers');
+const { web3tx, toWad, toBN } = require('@decentral.ee/web3-helpers');
 const { expectRevert } = require('@openzeppelin/test-helpers');
 const deployFramework = require('@superfluid-finance/ethereum-contracts/scripts/deploy-framework');
 const deployTestToken = require('@superfluid-finance/ethereum-contracts/scripts/deploy-test-token');
@@ -15,13 +15,12 @@ contract('TradeableCashflow', accounts => {
 		if (err) throw err;
 	};
 
-	const [admin, owner, nftOwner] = accounts;
-
+	const [admin, inflow1, inflow2, inflow3, owner, yannis, fran] = accounts;
+	const inflowAccounts = [inflow1, inflow2, inflow3];
 	let sf;
 	let dai;
 	let daix;
 	let app;
-	let viewer;
 
 	const assertBNEqual = (actualBN, expectedBN, context) => {
 		assert.strictEqual(actualBN.toString(), expectedBN.toString(), context);
@@ -34,11 +33,11 @@ contract('TradeableCashflow', accounts => {
 	async function timeTravelOnce(time) {
 		const _time = time || TEST_TRAVEL_TIME;
 		const block1 = await web3.eth.getBlock('latest');
-		console.log('current block time', block1.timestamp);
-		console.log(`time traveler going to the future +${_time}...`);
+		// console.log('current block time', block1.timestamp);
+		// console.log(`time traveler going to the future +${_time}...`);
 		await traveler.advanceTimeAndBlock(_time);
 		const block2 = await web3.eth.getBlock('latest');
-		console.log('new block time', block2.timestamp);
+		// console.log('new block time', block2.timestamp);
 	}
 
 	async function dropStream(sender, receiver, by) {
@@ -91,19 +90,21 @@ contract('TradeableCashflow', accounts => {
 			const daiAddress = await sf.tokens.fDAI.address;
 			dai = await sf.contracts.TestToken.at(daiAddress);
 
-			const mintAmount = toWad(10000000).toString();
-			const approveAmount = toWad(1000).toString();
+			const mintAmount = toWad(10000).toString();
+			const approveAmount = toWad(10000).toString();
 
-			await web3tx(dai.mint, `Mint ${mintAmount} dai`)(admin, mintAmount, {
-				from: admin,
-			});
-			await web3tx(dai.approve, `Approve ${approveAmount} daix`)(daix.address, approveAmount, {
-				from: admin,
-			});
+			for (let i = 0; i < inflowAccounts.length; ++i) {
+				await web3tx(dai.mint, `Mint ${mintAmount} dai`)(inflowAccounts[i], mintAmount, {
+					from: inflowAccounts[i],
+				});
+				await web3tx(dai.approve, `Approve ${approveAmount} daix`)(daix.address, approveAmount, {
+					from: inflowAccounts[i],
+				});
 
-			await web3tx(daix.upgrade, `Upgrade ${approveAmount} DAIx`)(approveAmount, {
-				from: admin,
-			});
+				await web3tx(daix.upgrade, `Upgrade ${approveAmount} DAIx`)(approveAmount, {
+					from: inflowAccounts[i],
+				});
+			}
 		}
 
 		app = await web3tx(TradeableCashflow.new, 'Deploy TradeableCashflow')(
@@ -136,41 +137,33 @@ contract('TradeableCashflow', accounts => {
 		});
 	});
 
-	describe('When opening a stream to the contract', () => {
+	describe('When opening streams to the contract', () => {
 		// const flowRate = (1e18).toString();
 		const flowRate = toWad(0.02);
 
-		before('create stream', async () => {
-			const userData = await web3.eth.abi.encodeParameters(['address'], [owner]);
-			console.log((await daix.balanceOf(admin)).toString());
-			const tx = await sf.cfa.createFlow({
-				superToken: daix.address,
-				sender: admin,
-				receiver: app.address,
-				flowRate: flowRate,
-				userData: userData,
-			});
-			console.log(tx);
+		before('create inflows', async () => {
+			for (let i = 0; i < inflowAccounts.length; ++i) {
+				await sf.cfa.createFlow({
+					superToken: daix.address,
+					sender: inflowAccounts[i],
+					receiver: app.address,
+					flowRate: flowRate,
+				});
+			}
 		});
 
-		it('should open the stream succesfully', async () => {
-			const flow = await sf.cfa.getFlow({
+		it('should open the 1st stream succesfully', async () => {
+			let flow = await sf.cfa.getFlow({
 				superToken: daix.address,
-				sender: admin,
+				sender: inflow1,
 				receiver: app.address,
 			});
-			console.log(flow);
 			assert.equal(flow.flowRate, flowRate);
-		});
-
-		it('should open the stream succesfully', async () => {
-			const flow = await sf.cfa.getFlow({
+			flow = await sf.cfa.getFlow({
 				superToken: daix.address,
 				sender: app.address,
 				receiver: owner,
 			});
-			console.log(flow);
-			assert.equal(flow.flowRate, flowRate);
 		});
 
 		describe('When we fast forward into the future', () => {
@@ -180,19 +173,34 @@ contract('TradeableCashflow', accounts => {
 
 			it('should have updated the balance of the owner and not the one of the contract', async () => {
 				assertBNEqual(await daix.balanceOf(app.address), '0');
-				console.log((await daix.balanceOf(owner)).toString());
 				assertBNGreaterThan(await daix.balanceOf(owner), '0');
 			});
 
 			describe('An NFT is minted and given to the buyer', () => {
 				const nftFlowRate = toWad(0.01);
-				before('mint NFT', async () => {
+				before('mint & transfer NFT', async () => {
 					await app.createNFT(nftFlowRate, '3600', {
 						from: owner,
 					});
-					await app.transferFrom(owner, nftOwner, '0', {
+					await app.transferFrom(owner, yannis, '0', {
 						from: owner,
 					});
+				});
+
+				it('updates the streams', async () => {
+					let flow = await sf.cfa.getFlow({
+						superToken: daix.address,
+						sender: app.address,
+						receiver: owner,
+					});
+					const newRate = flowRate.mul(toBN(inflowAccounts.length)) - nftFlowRate;
+					assertBNEqual(flow.flowRate, newRate);
+					flow = await sf.cfa.getFlow({
+						superToken: daix.address,
+						sender: app.address,
+						receiver: yannis,
+					});
+					assert.equal(flow.flowRate, nftFlowRate);
 				});
 
 				describe('When we fast forward into the future', () => {
@@ -200,10 +208,57 @@ contract('TradeableCashflow', accounts => {
 						await timeTravelOnce(3600);
 					});
 
-					it('should increase the nftOwner balance', async () => {
-						assertBNGreaterThan(await daix.balanceOf(nftOwner), '0');
+					it('should increase the nft owner balance', async () => {
+						assertBNEqual(await daix.balanceOf(app.address), '0');
+						assertBNGreaterThan(await daix.balanceOf(yannis), '0');
 					});
 				});
+
+				describe('the nft is transferred to a new account', () => {
+					before('transfer NFT', async () => {
+						await app.transferFrom(yannis, fran, '0', {
+							from: yannis,
+						});
+					});
+
+					describe('When we fast forward into the future', () => {
+						before('timeTravel', async () => {
+							await timeTravelOnce(3600);
+						});
+
+						it('should increase the new nftOwner balance', async () => {
+							assertBNEqual(await daix.balanceOf(app.address), '0');
+							assertBNGreaterThan(await daix.balanceOf(fran), '0');
+						});
+					});
+				});
+
+				// describe('more NFTs are minted', () => {
+				// 	const nftFlowRate = toWad(0.01);
+				// 	before('mint & transfer NFT', async () => {
+				// 		await app.createNFT(nftFlowRate, '3600', {
+				// 			from: owner,
+				// 		});
+				// 		await app.createNFT(nftFlowRate, '3600', {
+				// 			from: owner,
+				// 		});
+				// 		await app.transferFrom(owner, yannis, '1', {
+				// 			from: owner,
+				// 		});
+				// 		await app.transferFrom(owner, fran, '2', {
+				// 			from: owner,
+				// 		});
+				// 	});
+
+				// 	it('update the streams', async () => {
+				// 		const flow = await sf.cfa.getFlow({
+				// 			superToken: daix.address,
+				// 			sender: admin,
+				// 			receiver: app.address,
+				// 		});
+				// 		assert.equal(flow.flowRate, flowRate);
+				// 	});
+				// });
 			});
 		});
 	});
