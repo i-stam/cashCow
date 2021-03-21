@@ -13,14 +13,13 @@ contract TradeableCashflow is RedirectAll {
         string memory symbol
     ) RedirectAll(owner, host, cfa, acceptedToken, name, symbol) {}
 
-    function createNFT(
-        int96 flowRate,
-        uint256 duration /*onlyOwner*/
-    ) public {
+    function createNFT(int96 flowRate, uint256 duration) external {
+        require(msg.sender == _owner, "Only owner");
         // creates an NFT based on a set flowRate and duration
-        liens[lastId + 1] = Lien(flowRate, 0, duration, flowRate);
-        _mint(_owner, lastId + 1);
-        _newLien(lastId + 1);
+        liens[lastId] = Lien(flowRate, 0, duration, flowRate);
+        _mint(_owner, lastId);
+        _newLien(lastId);
+        lastId += 1;
     }
 
     //now I will insert a nice little hook in the _transfer, including the RedirectAll function I need
