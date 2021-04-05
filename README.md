@@ -1,4 +1,4 @@
-# future-sale
+# CashCow
 
 **Warning: This is a hackathon project, do not use for anything serious. It should definitely not be deployed to mainnet and it is highly likely to have bugs that can lead loss of funds. Use at your own risk.**
 
